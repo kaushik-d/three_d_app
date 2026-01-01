@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 from trame.app import get_server
+from trame.app.file_upload import ClientFile
 from trame.ui.vuetify3 import SinglePageWithDrawerLayout
 from trame.widgets import vuetify3 as vuetify, vtk as vtk_widgets, html
 
@@ -49,7 +50,7 @@ state.status_message = "Ready - Open STL or STP files to begin"
 state.file_upload_key = 0
 state.tooltip_text = ""
 state.show_help = False
-state.selected_files = []  # For VFileInput
+state.selected_files = []
 
 # Color constants
 HIGHLIGHT_COLOR = (0.2, 0.9, 0.4)  # Bright green for selection
@@ -386,47 +387,33 @@ def process_file_content(filename, content):
         return False
 
 
-# State change handlers for VFileInput
+# File upload handler using trame's ClientFile - triggered by state change
 @state.change("selected_files")
-def on_selected_files(selected_files, **kwargs):
-    """Handle file selection from VFileInput."""
+def on_selected_files_change(selected_files, **kwargs):
+    """Handle file selection from VFileInput using trame's ClientFile."""
     if not selected_files:
         return
 
     try:
         state.is_loading = True
-        state.status_message = "Loading files..."
-        ctrl.view_update()
-
-        files = selected_files if isinstance(selected_files, list) else [selected_files]
         loaded_count = 0
 
-        for file_data in files:
-            if not file_data:
+        files = selected_files if isinstance(selected_files, list) else [selected_files]
+
+        for file in files:
+            if not file:
                 continue
 
-            # VFileInput provides file info as dict with 'name' and 'content' (base64)
-            if isinstance(file_data, dict):
-                filename = file_data.get("name", "unknown")
-                content_b64 = file_data.get("content", "")
+            file_helper = ClientFile(file)
+            filename = file_helper.name
+            state.status_message = f"Loading {filename}..."
+            ctrl.view_update()
 
-                # Decode base64 content
-                if "," in content_b64:
-                    content_b64 = content_b64.split(",")[1]
+            # Get file content as bytes
+            content = file_helper.content
 
-                try:
-                    content = base64.b64decode(content_b64)
-                except Exception:
-                    state.error_message = f"Failed to decode file: {filename}"
-                    state.show_error = True
-                    continue
-
-                if process_file_content(filename, content):
-                    loaded_count += 1
-            else:
-                # Handle raw bytes if provided differently
-                state.error_message = "Unexpected file format from input"
-                state.show_error = True
+            if process_file_content(filename, content):
+                loaded_count += 1
 
         if loaded_count > 0:
             app.reset_camera()
@@ -435,11 +422,11 @@ def on_selected_files(selected_files, **kwargs):
         ctrl.view_update()
 
     except Exception as e:
-        state.error_message = f"Upload error: {str(e)}"
+        state.error_message = f"Error loading files: {str(e)}"
         state.show_error = True
     finally:
         state.is_loading = False
-        state.selected_files = []  # Clear the file input
+        state.selected_files = []  # Clear the selection
 
 
 @ctrl.add("remove_file")
@@ -626,23 +613,6 @@ with SinglePageWithDrawerLayout(server) as layout:
             font-size: 48px !important;
             opacity: 0.4;
         }
-
-        .v-file-input {
-            background-color: rgba(50, 130, 184, 0.1) !important;
-            border-radius: 8px !important;
-        }
-
-        .v-file-input .v-field__outline {
-            border-color: rgba(50, 130, 184, 0.4) !important;
-        }
-
-        .v-file-input:hover .v-field__outline {
-            border-color: rgba(50, 130, 184, 0.8) !important;
-        }
-
-        .v-file-input .v-chip {
-            background-color: rgba(50, 130, 184, 0.3) !important;
-        }
     """
     )
 
@@ -671,15 +641,12 @@ with SinglePageWithDrawerLayout(server) as layout:
             multiple=True,
             label="Open CAD Files",
             prepend_icon="mdi-folder-open-outline",
-            show_size=True,
-            chips=True,
             density="compact",
             variant="outlined",
             hide_details=True,
-            style="max-width: 300px;",
-            classes="mr-2",
-            loading=("is_loading",),
             clearable=True,
+            classes="mr-2",
+            style="max-width: 300px;",
         )
 
         vuetify.VDivider(vertical=True, classes="mx-2", style="opacity: 0.3;")
@@ -925,23 +892,28 @@ with SinglePageWithDrawerLayout(server) as layout:
             """
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
-                const vtkContainer = document.querySelector('.vtk-container');
+                // VTK container click handlers
+                var vtkContainer = document.querySelector('.vtk-container');
                 if (vtkContainer) {
                     vtkContainer.addEventListener('click', function(event) {
                         if (event.button === 0) {
-                            const rect = vtkContainer.getBoundingClientRect();
-                            const x = event.clientX - rect.left;
-                            const y = rect.height - (event.clientY - rect.top);
-                            window.trame.trigger('on_left_click', {x: x, y: y});
+                            var rect = vtkContainer.getBoundingClientRect();
+                            var x = event.clientX - rect.left;
+                            var y = rect.height - (event.clientY - rect.top);
+                            if (window.trame) {
+                                window.trame.trigger('on_left_click', {x: x, y: y});
+                            }
                         }
                     });
 
                     vtkContainer.addEventListener('contextmenu', function(event) {
                         event.preventDefault();
-                        const rect = vtkContainer.getBoundingClientRect();
-                        const x = event.clientX - rect.left;
-                        const y = rect.height - (event.clientY - rect.top);
-                        window.trame.trigger('on_right_click', {x: x, y: y});
+                        var rect = vtkContainer.getBoundingClientRect();
+                        var x = event.clientX - rect.left;
+                        var y = rect.height - (event.clientY - rect.top);
+                        if (window.trame) {
+                            window.trame.trigger('on_right_click', {x: x, y: y});
+                        }
                     });
                 }
             }, 1000);
