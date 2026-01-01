@@ -1,0 +1,15 @@
+ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION(('Sample STEP file for testing'),'2;1');
+FILE_NAME('sample.stp','2024-01-01T00:00:00',(''),(''),
+  'Sample STEP','Python Generated','');
+FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));
+ENDSEC;
+DATA;
+#1=PRODUCT_DEFINITION_CONTEXT('',#2,'design');
+#2=APPLICATION_CONTEXT('automotive design');
+#3=APPLICATION_PROTOCOL_DEFINITION('','automotive design',1994,#2);
+#4=PRODUCT_CONTEXT('',#2,'mechanical');
+#5=PRODUCT('Sample','Sample Part',$,(#4));
+ENDSEC;
+END-ISO-10303-21;

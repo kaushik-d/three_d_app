@@ -1,0 +1,34 @@
+I want you to create a modern, professional three D CAD file visualization application. Here's my vision:
+
+APPLICATION OVERVIEW:
+Build a complete web app that helps users open a 3D CAD file of stl or stp format. The app should feel modern, intuitive, and professional. 
+
+CORE FEATURES:
+- App should allow usrs to select *.stl or *.stp files to open and display the 3D geometry form the files in a viewport. 
+- It should show a tree like structure on the left of the UI and the view port that shows the names of the file opened. 
+- User should be able to to open multiple files wither at once or one by one. 
+- User should be able to interact with the 3D model using the mouse. 
+- User should be element to select a triangle (if its a stl file) or a surface (if its a stp file) by clicking on the geoemtry by the mouse. 
+- User should be able to pan, rotate, and zoom the camera view using the mouse. 
+
+TECHNICAL REQUIREMENTS:
+- Use VTK/Trame 
+- Use python
+- Use only python
+
+DESIGN REQUIREMENTS:
+- Clean, modern interface with a professional color scheme
+- Intuitive navigation and user experience
+- Visual feedback for user actions
+- Loading states and error handling
+- Mobile-responsive design
+
+SPECIFIC FUNCTIONALITY:
+- Open files from the local disk
+- Close files that are already open and delete those geometry from the view
+- Color the selected trangles/surface when selected by left mouse bottom click
+- Unselect with right mouse botton click
+
+Please create this as a complete, production-ready application. Set up the project structure, implement all features, and make sure everything works together seamlessly. Focus on creating something that looks professional.
+
+When you're done, provide instructions on how to run the application and test all features.
