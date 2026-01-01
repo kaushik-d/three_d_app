@@ -49,6 +49,7 @@ state.status_message = "Ready - Open STL or STP files to begin"
 state.file_upload_key = 0
 state.tooltip_text = ""
 state.show_help = False
+state.selected_files = []  # For VFileInput
 
 # Color constants
 HIGHLIGHT_COLOR = (0.2, 0.9, 0.4)  # Bright green for selection
@@ -346,11 +347,50 @@ class CADViewerApp:
 app = CADViewerApp()
 
 
-# State change handlers
-@state.change("file_upload_trigger")
-def on_file_upload(file_upload_trigger, **kwargs):
-    """Handle file upload from the UI."""
-    if not file_upload_trigger:
+def process_file_content(filename, content):
+    """Process file content and add to scene."""
+    ext = Path(filename).suffix.lower()
+
+    try:
+        if ext == ".stl":
+            polydata, file_type = app.load_stl_file(content)
+        elif ext in [".stp", ".step"]:
+            polydata, file_type = app.load_stp_file(content, filename)
+        else:
+            state.error_message = f"Unsupported format: {ext}. Use .stl or .stp files."
+            state.show_error = True
+            return False
+
+        if polydata.GetNumberOfCells() == 0:
+            state.error_message = f"No geometry found in {filename}"
+            state.show_error = True
+            return False
+
+        # Add to scene
+        file_id = app.add_file(polydata, filename, file_type)
+
+        # Update file list in state
+        file_info = {
+            "id": file_id,
+            "name": filename,
+            "type": file_type,
+            "cells": polydata.GetNumberOfCells(),
+            "points": polydata.GetNumberOfPoints(),
+        }
+        state.loaded_files = state.loaded_files + [file_info]
+        return True
+
+    except Exception as e:
+        state.error_message = f"Error loading {filename}: {str(e)}"
+        state.show_error = True
+        return False
+
+
+# State change handlers for VFileInput
+@state.change("selected_files")
+def on_selected_files(selected_files, **kwargs):
+    """Handle file selection from VFileInput."""
+    if not selected_files:
         return
 
     try:
@@ -358,66 +398,34 @@ def on_file_upload(file_upload_trigger, **kwargs):
         state.status_message = "Loading files..."
         ctrl.view_update()
 
-        files = (
-            file_upload_trigger
-            if isinstance(file_upload_trigger, list)
-            else [file_upload_trigger]
-        )
+        files = selected_files if isinstance(selected_files, list) else [selected_files]
         loaded_count = 0
 
         for file_data in files:
             if not file_data:
                 continue
 
-            filename = file_data.get("name", "unknown")
-            content_b64 = file_data.get("content", "")
+            # VFileInput provides file info as dict with 'name' and 'content' (base64)
+            if isinstance(file_data, dict):
+                filename = file_data.get("name", "unknown")
+                content_b64 = file_data.get("content", "")
 
-            # Decode base64 content
-            if "," in content_b64:
-                content_b64 = content_b64.split(",")[1]
+                # Decode base64 content
+                if "," in content_b64:
+                    content_b64 = content_b64.split(",")[1]
 
-            try:
-                content = base64.b64decode(content_b64)
-            except Exception:
-                state.error_message = f"Failed to decode file: {filename}"
-                state.show_error = True
-                continue
-
-            ext = Path(filename).suffix.lower()
-
-            try:
-                if ext == ".stl":
-                    polydata, file_type = app.load_stl_file(content)
-                elif ext in [".stp", ".step"]:
-                    polydata, file_type = app.load_stp_file(content, filename)
-                else:
-                    state.error_message = (
-                        f"Unsupported format: {ext}. Use .stl or .stp files."
-                    )
+                try:
+                    content = base64.b64decode(content_b64)
+                except Exception:
+                    state.error_message = f"Failed to decode file: {filename}"
                     state.show_error = True
                     continue
 
-                if polydata.GetNumberOfCells() == 0:
-                    state.error_message = f"No geometry found in {filename}"
-                    state.show_error = True
-                    continue
-
-                # Add to scene
-                file_id = app.add_file(polydata, filename, file_type)
-
-                # Update file list in state
-                file_info = {
-                    "id": file_id,
-                    "name": filename,
-                    "type": file_type,
-                    "cells": polydata.GetNumberOfCells(),
-                    "points": polydata.GetNumberOfPoints(),
-                }
-                state.loaded_files = state.loaded_files + [file_info]
-                loaded_count += 1
-
-            except Exception as e:
-                state.error_message = f"Error loading {filename}: {str(e)}"
+                if process_file_content(filename, content):
+                    loaded_count += 1
+            else:
+                # Handle raw bytes if provided differently
+                state.error_message = "Unexpected file format from input"
                 state.show_error = True
 
         if loaded_count > 0:
@@ -431,7 +439,7 @@ def on_file_upload(file_upload_trigger, **kwargs):
         state.show_error = True
     finally:
         state.is_loading = False
-        state.file_upload_trigger = None
+        state.selected_files = []  # Clear the file input
 
 
 @ctrl.add("remove_file")
@@ -618,6 +626,23 @@ with SinglePageWithDrawerLayout(server) as layout:
             font-size: 48px !important;
             opacity: 0.4;
         }
+
+        .v-file-input {
+            background-color: rgba(50, 130, 184, 0.1) !important;
+            border-radius: 8px !important;
+        }
+
+        .v-file-input .v-field__outline {
+            border-color: rgba(50, 130, 184, 0.4) !important;
+        }
+
+        .v-file-input:hover .v-field__outline {
+            border-color: rgba(50, 130, 184, 0.8) !important;
+        }
+
+        .v-file-input .v-chip {
+            background-color: rgba(50, 130, 184, 0.3) !important;
+        }
     """
     )
 
@@ -639,45 +664,23 @@ with SinglePageWithDrawerLayout(server) as layout:
 
         vuetify.VSpacer()
 
-        # File upload button
-        with vuetify.VBtn(
-            classes="upload-btn mr-2",
-            variant="flat",
+        # File upload using VFileInput
+        vuetify.VFileInput(
+            v_model=("selected_files", []),
+            accept=".stl,.stp,.step",
+            multiple=True,
+            label="Open CAD Files",
+            prepend_icon="mdi-folder-open-outline",
+            show_size=True,
+            chips=True,
+            density="compact",
+            variant="outlined",
+            hide_details=True,
+            style="max-width: 300px;",
+            classes="mr-2",
             loading=("is_loading",),
-            rounded="lg",
-        ):
-            vuetify.VIcon("mdi-folder-open-outline", start=True)
-            html.Span("Open Files")
-            html.Input(
-                type="file",
-                accept=".stl,.stp,.step",
-                multiple=True,
-                style="position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; left: 0; top: 0;",
-                __events=["change"],
-                change="""(function(event) {
-                    var files = event.target.files;
-                    if (!files || files.length === 0) return;
-                    var results = [];
-                    var pending = files.length;
-                    for (var i = 0; i < files.length; i++) {
-                        (function(file) {
-                            var reader = new FileReader();
-                            reader.onload = function(e) {
-                                results.push({
-                                    name: file.name,
-                                    content: e.target.result
-                                });
-                                pending--;
-                                if (pending === 0) {
-                                    file_upload_trigger = results;
-                                }
-                            };
-                            reader.readAsDataURL(file);
-                        })(files[i]);
-                    }
-                    event.target.value = '';
-                })($event)""",
-            )
+            clearable=True,
+        )
 
         vuetify.VDivider(vertical=True, classes="mx-2", style="opacity: 0.3;")
 
