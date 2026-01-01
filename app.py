@@ -177,7 +177,7 @@ class CADViewerApp:
         polydata.DeepCopy(triangulator.GetOutput())
 
         state.status_message = (
-            f"Note: STEP shown as placeholder. Full STEP support requires OpenCASCADE."
+            "Note: STEP shown as placeholder. Full STEP support requires OpenCASCADE."
         )
         return polydata, "STP"
 
@@ -378,7 +378,7 @@ def on_file_upload(file_upload_trigger, **kwargs):
 
             try:
                 content = base64.b64decode(content_b64)
-            except Exception as e:
+            except Exception:
                 state.error_message = f"Failed to decode file: {filename}"
                 state.show_error = True
                 continue
@@ -625,12 +625,13 @@ with SinglePageWithDrawerLayout(server) as layout:
     with layout.toolbar as toolbar:
         toolbar.classes = "app-toolbar"
 
-        vuetify.VBtn(
+        with vuetify.VBtn(
             icon=True,
             click="drawer_open = !drawer_open",
             variant="text",
             classes="action-btn",
-        ).with_child(vuetify.VIcon("mdi-menu"))
+        ):
+            vuetify.VIcon("mdi-menu")
 
         with html.Div(classes="d-flex align-center ml-3"):
             vuetify.VIcon("mdi-cube-scan", color="primary", classes="mr-2")
@@ -653,56 +654,60 @@ with SinglePageWithDrawerLayout(server) as layout:
                 multiple=True,
                 style="position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; left: 0; top: 0;",
                 __events=["change"],
-                change="""
-                    const files = $event.target.files;
+                change="""(function(event) {
+                    var files = event.target.files;
                     if (!files || files.length === 0) return;
-                    const filePromises = [];
-                    for (let i = 0; i < files.length; i++) {
-                        const file = files[i];
-                        filePromises.push(new Promise((resolve) => {
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                resolve({
+                    var results = [];
+                    var pending = files.length;
+                    for (var i = 0; i < files.length; i++) {
+                        (function(file) {
+                            var reader = new FileReader();
+                            reader.onload = function(e) {
+                                results.push({
                                     name: file.name,
                                     content: e.target.result
                                 });
+                                pending--;
+                                if (pending === 0) {
+                                    file_upload_trigger = results;
+                                }
                             };
                             reader.readAsDataURL(file);
-                        }));
+                        })(files[i]);
                     }
-                    Promise.all(filePromises).then((results) => {
-                        file_upload_trigger = results;
-                    });
-                    $event.target.value = '';
-                """,
+                    event.target.value = '';
+                })($event)""",
             )
 
         vuetify.VDivider(vertical=True, classes="mx-2", style="opacity: 0.3;")
 
-        vuetify.VBtn(
+        with vuetify.VBtn(
             icon=True,
             click=ctrl.reset_view,
             variant="text",
             classes="action-btn",
             title="Reset Camera View",
-        ).with_child(vuetify.VIcon("mdi-camera-retake-outline"))
+        ):
+            vuetify.VIcon("mdi-camera-retake-outline")
 
-        vuetify.VBtn(
+        with vuetify.VBtn(
             icon=True,
             click=ctrl.toggle_help,
             variant="text",
             classes="action-btn",
             title="Help",
-        ).with_child(vuetify.VIcon("mdi-help-circle-outline"))
+        ):
+            vuetify.VIcon("mdi-help-circle-outline")
 
-        vuetify.VBtn(
+        with vuetify.VBtn(
             icon=True,
             click=ctrl.clear_all,
             variant="text",
             classes="action-btn",
             title="Clear All Files",
             color="error",
-        ).with_child(vuetify.VIcon("mdi-delete-sweep-outline"))
+        ):
+            vuetify.VIcon("mdi-delete-sweep-outline")
 
     # Drawer (File Tree Sidebar)
     with layout.drawer as drawer:
@@ -775,16 +780,17 @@ with SinglePageWithDrawerLayout(server) as layout:
 
                     with vuetify.Template(v_slot_append=True):
                         with html.Div(classes="d-flex"):
-                            vuetify.VBtn(
+                            with vuetify.VBtn(
                                 icon=True,
                                 size="x-small",
                                 variant="text",
                                 click=(ctrl.toggle_wireframe, "[file.id]"),
                                 click_stop=True,
                                 title="Toggle Wireframe",
-                            ).with_child(vuetify.VIcon("mdi-grid", size="small"))
+                            ):
+                                vuetify.VIcon("mdi-grid", size="small")
 
-                            vuetify.VBtn(
+                            with vuetify.VBtn(
                                 icon=True,
                                 size="x-small",
                                 variant="text",
@@ -792,7 +798,8 @@ with SinglePageWithDrawerLayout(server) as layout:
                                 click=(ctrl.remove_file, "[file.id]"),
                                 click_stop=True,
                                 title="Remove File",
-                            ).with_child(vuetify.VIcon("mdi-close", size="small"))
+                            ):
+                                vuetify.VIcon("mdi-close", size="small")
 
                 # Empty state
                 with vuetify.VListItem(
@@ -980,30 +987,27 @@ with SinglePageWithDrawerLayout(server) as layout:
                     size="x-small",
                     variant="tonal",
                     color="primary",
-                ).with_child(html.Span("{{ loaded_files.length }} file(s)"))
+                    children=["{{ loaded_files.length }} file(s)"],
+                )
 
                 vuetify.VChip(
                     v_if="selected_cell_id >= 0",
                     size="x-small",
                     variant="tonal",
                     color="success",
-                ).with_child(html.Span("Cell {{ selected_cell_id }}"))
+                    children=["Cell {{ selected_cell_id }}"],
+                )
 
     # Error snackbar
-    vuetify.VSnackbar(
+    with vuetify.VSnackbar(
         v_model=("show_error",),
         color="error",
         timeout=5000,
         location="top",
-    ).with_child(
-        html.Div(
-            [
-                vuetify.VIcon("mdi-alert-circle-outline", classes="mr-2"),
-                html.Span("{{ error_message }}"),
-            ],
-            classes="d-flex align-center",
-        )
-    )
+    ):
+        with html.Div(classes="d-flex align-center"):
+            vuetify.VIcon("mdi-alert-circle-outline", classes="mr-2")
+            html.Span("{{ error_message }}")
 
     # Help dialog
     with vuetify.VDialog(
@@ -1015,11 +1019,12 @@ with SinglePageWithDrawerLayout(server) as layout:
                 vuetify.VIcon("mdi-help-circle-outline", classes="mr-2")
                 html.Span("Help - 3D CAD Viewer")
                 vuetify.VSpacer()
-                vuetify.VBtn(
+                with vuetify.VBtn(
                     icon=True,
                     variant="text",
                     click="show_help = false",
-                ).with_child(vuetify.VIcon("mdi-close"))
+                ):
+                    vuetify.VIcon("mdi-close")
 
             vuetify.VDivider()
 
