@@ -8,7 +8,9 @@
       "Bash(source venv/bin/activate)",
       "Bash(sudo apt-get update:*)",
       "Bash(sudo apt-get install:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRefactor to class-based trame pattern with Vue2\n\n- Refactored app.py to use @TrameApp decorator and class-based structure\n- Switched from Vue3/Vuetify3 to Vue2/Vuetify for better VTK compatibility\n- Fixed file upload using proper VFileInput v_model pattern\n- Used vtkmodules imports with correct factory initialization order\n- Added CLAUDE.md with project learnings and guidelines\n- Moved reference examples to examples/ folder\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
