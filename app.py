@@ -482,9 +482,6 @@ class CADViewerApp:
             # Toolbar
             with layout.toolbar as toolbar:
                 toolbar.dense = True
-
-                vuetify.VIcon("mdi-cube-scan", classes="mr-2")
-
                 vuetify.VSpacer()
 
                 # File upload using VFileInput
@@ -507,6 +504,92 @@ class CADViewerApp:
                 with vuetify.VBtn(icon=True, click=self.ctrl.clear_all):
                     vuetify.VIcon("mdi-delete-sweep-outline")
 
+            # Navigation Drawer (File Tree Sidebar)
+            with vuetify.VNavigationDrawer(
+                v_model=("drawer_open", True),
+                absolute=True,
+                clipped=True,
+                width=300,
+            ):
+                # Header
+                with vuetify.VListItem():
+                    with vuetify.VListItemContent():
+                        vuetify.VListItemTitle("Loaded Files", classes="title")
+
+                vuetify.VDivider()
+
+                # File list
+                with vuetify.VList(dense=True):
+                    # Show each loaded file
+                    with vuetify.VListItem(
+                        v_for="(file, index) in loaded_files",
+                        key="file.id",
+                        click=(self.ctrl.select_file_in_tree, "[file.id]"),
+                        v_bind="{ class: { 'v-list-item--active': selected_file === file.id } }",
+                    ):
+                        with vuetify.VListItemIcon():
+                            vuetify.VIcon(
+                                "{{ file.type === 'STL' ? 'mdi-triangle-outline' : 'mdi-shape-outline' }}",
+                                small=True,
+                            )
+                        with vuetify.VListItemContent():
+                            vuetify.VListItemTitle("{{ file.name }}")
+                            vuetify.VListItemSubtitle(
+                                "{{ file.type }} - {{ file.cells }} cells"
+                            )
+                        with vuetify.VListItemAction():
+                            with vuetify.VBtn(
+                                icon=True,
+                                x_small=True,
+                                click=(self.ctrl.toggle_wireframe, "[file.id]"),
+                                click_stop=True,
+                            ):
+                                vuetify.VIcon("mdi-grid", x_small=True)
+                            with vuetify.VBtn(
+                                icon=True,
+                                x_small=True,
+                                color="error",
+                                click=(self.ctrl.remove_file, "[file.id]"),
+                                click_stop=True,
+                            ):
+                                vuetify.VIcon("mdi-close", x_small=True)
+
+                    # Empty state
+                    with vuetify.VListItem(v_if="loaded_files.length === 0"):
+                        with vuetify.VListItemContent():
+                            vuetify.VListItemTitle(
+                                "No files loaded",
+                                classes="text--secondary text-center",
+                            )
+                            vuetify.VListItemSubtitle(
+                                "Use the file input to load STL or STP files",
+                                classes="text-center",
+                            )
+
+                vuetify.VDivider()
+
+                # Selection info
+                with vuetify.VCard(flat=True, v_if="selected_cell_id >= 0", classes="ma-2"):
+                    with vuetify.VCardTitle(classes="subtitle-2"):
+                        vuetify.VIcon("mdi-cursor-default-click", small=True, classes="mr-2")
+                        html.Span("Selection")
+                    with vuetify.VCardText():
+                        html.Div("Cell ID: {{ selected_cell_id }}")
+
+                vuetify.VSpacer()
+
+                # Help section at bottom
+                with vuetify.VCard(flat=True, classes="ma-2"):
+                    with vuetify.VCardTitle(classes="subtitle-2"):
+                        vuetify.VIcon("mdi-help-circle-outline", small=True, classes="mr-2")
+                        html.Span("Controls")
+                    with vuetify.VCardText(classes="caption"):
+                        html.Div("Left drag: Rotate")
+                        html.Div("Right drag: Pan")
+                        html.Div("Scroll: Zoom")
+                        html.Div("Left click: Select cell")
+                        html.Div("Right click: Clear selection")
+
             # Main content (3D View)
             with layout.content:
                 with vuetify.VContainer(fluid=True, classes="pa-0 fill-height"):
@@ -514,7 +597,65 @@ class CADViewerApp:
                     self.ctrl.view_update = view.update
                     self.ctrl.view_reset_camera = view.reset_camera
 
+            # Footer with status
+            with layout.footer:
+                with vuetify.VFooter(app=True, padless=True, classes="px-4"):
+                    vuetify.VProgressCircular(
+                        indeterminate=True,
+                        size=16,
+                        width=2,
+                        v_if="is_loading",
+                        classes="mr-2",
+                    )
+                    html.Span("{{ status_message }}", classes="caption")
+                    vuetify.VSpacer()
+                    html.Span(
+                        "{{ loaded_files.length }} file(s)",
+                        classes="caption",
+                        v_if="loaded_files.length > 0",
+                    )
+
+            # Error snackbar
+            vuetify.VSnackbar(
+                v_model=("show_error", False),
+                color="error",
+                timeout=5000,
+                top=True,
+                children=["{{ error_message }}"],
+            )
+
             return layout
+
+    def on_view_click(self, event):
+        """Handle click events on the VTK view."""
+        if not event:
+            return
+
+        # Get click position
+        x = event.get("position", {}).get("x", 0)
+        y = event.get("position", {}).get("y", 0)
+
+        # Perform picking
+        file_id, cell_id = self.pick_cell(x, y)
+
+        if file_id and cell_id >= 0:
+            # Highlight the selected cell
+            if self.highlight_cell(file_id, cell_id):
+                self.state.selected_cell_id = cell_id
+                self.state.selected_file = file_id
+                file_info = self.file_info.get(file_id, {})
+                file_type = file_info.get("type", "")
+                element_type = "triangle" if file_type == "STL" else "surface"
+                self.state.status_message = f"Selected {element_type} (Cell ID: {cell_id})"
+        else:
+            # Clear selection if clicked on empty space
+            self.clear_selection()
+            self.state.selected_cell_id = -1
+            self.state.status_message = "Selection cleared"
+
+        self.render_window.Render()
+        if hasattr(self.ctrl, 'view_update') and self.ctrl.view_update:
+            self.ctrl.view_update()
 
 
 def main():
