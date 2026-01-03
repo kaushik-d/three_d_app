@@ -31,8 +31,8 @@ from vtkmodules.vtkCommonCore import vtkUnsignedCharArray
 from trame.app import get_server
 from trame.app.file_upload import ClientFile
 from trame.decorators import TrameApp, change
-from trame.ui.vuetify import SinglePageLayout
-from trame.widgets import vuetify, vtk as vtk_widgets, html
+from trame.ui.vuetify3 import SinglePageLayout
+from trame.widgets import vuetify3 as vuetify, vtk as vtk_widgets, html
 
 # Color constants
 HIGHLIGHT_COLOR = (0.2, 0.9, 0.4)  # Bright green for selection
@@ -44,7 +44,7 @@ class CADViewerApp:
     """Main CAD Viewer Application class."""
 
     def __init__(self, server=None):
-        self.server = get_server(server, client_type="vue2")
+        self.server = get_server(server, client_type="vue3")
         self._setup_state()
         self._setup_vtk()
         self.ui = self._build_ui()
@@ -481,7 +481,7 @@ class CADViewerApp:
 
             # Toolbar
             with layout.toolbar as toolbar:
-                toolbar.dense = True
+                toolbar.density = "compact"
                 vuetify.VSpacer()
 
                 # File upload using VFileInput
@@ -490,88 +490,85 @@ class CADViewerApp:
                     accept=".stl,.stp,.step",
                     label="Open CAD File",
                     prepend_icon="mdi-folder-open-outline",
-                    dense=True,
-                    outlined=True,
+                    density="compact",
+                    variant="outlined",
                     hide_details=True,
                     clearable=True,
                     classes="mr-2",
                     style="max-width: 300px;",
                 )
 
-                with vuetify.VBtn(icon=True, click=self.ctrl.reset_view):
+                with vuetify.VBtn(icon=True, click=self.ctrl.reset_view, variant="text"):
                     vuetify.VIcon("mdi-camera-retake-outline")
 
-                with vuetify.VBtn(icon=True, click=self.ctrl.clear_all):
+                with vuetify.VBtn(icon=True, click=self.ctrl.clear_all, variant="text"):
                     vuetify.VIcon("mdi-delete-sweep-outline")
 
             # Navigation Drawer (File Tree Sidebar)
             with vuetify.VNavigationDrawer(
                 v_model=("drawer_open", True),
-                absolute=True,
-                clipped=True,
                 width=300,
             ):
                 # Header
                 with vuetify.VListItem():
-                    with vuetify.VListItemContent():
-                        vuetify.VListItemTitle("Loaded Files", classes="title")
+                    vuetify.VListItemTitle("Loaded Files", classes="text-h6")
 
                 vuetify.VDivider()
 
                 # File list
-                with vuetify.VList(dense=True):
+                with vuetify.VList(density="compact"):
                     # Show each loaded file
                     with vuetify.VListItem(
                         v_for="(file, index) in loaded_files",
                         key="file.id",
                         click=(self.ctrl.select_file_in_tree, "[file.id]"),
-                        v_bind="{ class: { 'v-list-item--active': selected_file === file.id } }",
+                        active=("selected_file === file.id",),
                     ):
-                        with vuetify.VListItemIcon():
+                        with vuetify.Template(v_slot_prepend=True):
                             vuetify.VIcon(
                                 "{{ file.type === 'STL' ? 'mdi-triangle-outline' : 'mdi-shape-outline' }}",
-                                small=True,
+                                size="small",
                             )
-                        with vuetify.VListItemContent():
-                            vuetify.VListItemTitle("{{ file.name }}")
-                            vuetify.VListItemSubtitle(
-                                "{{ file.type }} - {{ file.cells }} cells"
-                            )
-                        with vuetify.VListItemAction():
+                        vuetify.VListItemTitle("{{ file.name }}")
+                        vuetify.VListItemSubtitle(
+                            "{{ file.type }} - {{ file.cells }} cells"
+                        )
+                        with vuetify.Template(v_slot_append=True):
                             with vuetify.VBtn(
                                 icon=True,
-                                x_small=True,
+                                size="x-small",
+                                variant="text",
                                 click=(self.ctrl.toggle_wireframe, "[file.id]"),
                                 click_stop=True,
                             ):
-                                vuetify.VIcon("mdi-grid", x_small=True)
+                                vuetify.VIcon("mdi-grid", size="x-small")
                             with vuetify.VBtn(
                                 icon=True,
-                                x_small=True,
+                                size="x-small",
+                                variant="text",
                                 color="error",
                                 click=(self.ctrl.remove_file, "[file.id]"),
                                 click_stop=True,
                             ):
-                                vuetify.VIcon("mdi-close", x_small=True)
+                                vuetify.VIcon("mdi-close", size="x-small")
 
                     # Empty state
                     with vuetify.VListItem(v_if="loaded_files.length === 0"):
-                        with vuetify.VListItemContent():
-                            vuetify.VListItemTitle(
-                                "No files loaded",
-                                classes="text--secondary text-center",
-                            )
-                            vuetify.VListItemSubtitle(
-                                "Use the file input to load STL or STP files",
-                                classes="text-center",
-                            )
+                        vuetify.VListItemTitle(
+                            "No files loaded",
+                            classes="text-medium-emphasis text-center",
+                        )
+                        vuetify.VListItemSubtitle(
+                            "Use the file input to load STL or STP files",
+                            classes="text-center",
+                        )
 
                 vuetify.VDivider()
 
                 # Selection info
-                with vuetify.VCard(flat=True, v_if="selected_cell_id >= 0", classes="ma-2"):
-                    with vuetify.VCardTitle(classes="subtitle-2"):
-                        vuetify.VIcon("mdi-cursor-default-click", small=True, classes="mr-2")
+                with vuetify.VCard(variant="flat", v_if="selected_cell_id >= 0", classes="ma-2"):
+                    with vuetify.VCardTitle(classes="text-subtitle-2"):
+                        vuetify.VIcon("mdi-cursor-default-click", size="small", classes="mr-2")
                         html.Span("Selection")
                     with vuetify.VCardText():
                         html.Div("Cell ID: {{ selected_cell_id }}")
@@ -579,11 +576,11 @@ class CADViewerApp:
                 vuetify.VSpacer()
 
                 # Help section at bottom
-                with vuetify.VCard(flat=True, classes="ma-2"):
-                    with vuetify.VCardTitle(classes="subtitle-2"):
-                        vuetify.VIcon("mdi-help-circle-outline", small=True, classes="mr-2")
+                with vuetify.VCard(variant="flat", classes="ma-2"):
+                    with vuetify.VCardTitle(classes="text-subtitle-2"):
+                        vuetify.VIcon("mdi-help-circle-outline", size="small", classes="mr-2")
                         html.Span("Controls")
-                    with vuetify.VCardText(classes="caption"):
+                    with vuetify.VCardText(classes="text-caption"):
                         html.Div("Left drag: Rotate")
                         html.Div("Right drag: Pan")
                         html.Div("Scroll: Zoom")
@@ -599,7 +596,7 @@ class CADViewerApp:
 
             # Footer with status
             with layout.footer:
-                with vuetify.VFooter(app=True, padless=True, classes="px-4"):
+                with vuetify.VFooter(app=True, classes="px-4"):
                     vuetify.VProgressCircular(
                         indeterminate=True,
                         size=16,
@@ -607,11 +604,11 @@ class CADViewerApp:
                         v_if="is_loading",
                         classes="mr-2",
                     )
-                    html.Span("{{ status_message }}", classes="caption")
+                    html.Span("{{ status_message }}", classes="text-caption")
                     vuetify.VSpacer()
                     html.Span(
                         "{{ loaded_files.length }} file(s)",
-                        classes="caption",
+                        classes="text-caption",
                         v_if="loaded_files.length > 0",
                     )
 
@@ -620,7 +617,7 @@ class CADViewerApp:
                 v_model=("show_error", False),
                 color="error",
                 timeout=5000,
-                top=True,
+                location="top",
                 children=["{{ error_message }}"],
             )
 
